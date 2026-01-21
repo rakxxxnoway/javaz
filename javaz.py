@@ -5,7 +5,7 @@ import os
 
 
 # globals
-version_status = "1.0.0"
+version_status = "1.0.1"
 
 COMP_FILE_NAME = "build"
 START_FILE_NAME = "start"
@@ -18,6 +18,8 @@ alen = len(sys.argv)
 STDO = "[\033[92m*\033[0m]: "
 STDE = "[\033[91m!\033[0m]: "
 STDI = "\033[92m>\033[0m "
+
+ROOT_PATH = "/usr/local/lib/javaz"
 
 opts = {
     "basic":    ["basic", "Creates empty gradle project"],
@@ -111,7 +113,7 @@ Gradle:
 
 C++:
  --lang, -l                             - Creates src file for C/C++ (c, c++)
- --include-custom-std, -ics             - Adds local useful standard library
+ --include-cstd, -ics                   - Adds local useful standard library
  --make, -mk                            - Creates makefile with specific name for executable file name: --make target_name
 
 Alowed types:"""  
@@ -310,8 +312,10 @@ def create_make_project(project_name:str, lang:str, *args) -> None:
                 continue
 
             if arg in ("--include-cstd", "-ics"):
-                print(f"{STDO}Adding Custon STD library...")
-                subprocess.run(["cp", "/usr/local/lib/javaz/std/"])
+                cpp_lib = "libbsopen"
+                print(f"{STDO}Adding Custom STD library...")
+                subprocess.run(["cp", f"{ROOT_PATH}/std/{cpp_lib}.cpp", f"{project_name}/lib/"])
+                subprocess.run(["cp", f"{ROOT_PATH}/std/{cpp_lib}.hpp", f"{project_name}/lib/"])
 
             if arg in ("--make", "-mk"):
                 print(f"{STDO}Creating Makefile...")

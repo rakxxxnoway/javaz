@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+kitty --override initial_window_width=47c       --override initial_window_height=43c       >/dev/null 2>&1 &
+
+disown
+nvim ./main.cpp -c NERDTree

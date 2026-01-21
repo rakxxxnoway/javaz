@@ -311,6 +311,7 @@ def create_make_project(project_name:str, lang:str, *args) -> None:
 
             if arg in ("--include-cstd", "-ics"):
                 print(f"{STDO}Adding Custon STD library...")
+                subprocess.run(["cp", "/usr/local/lib/javaz/std/"])
 
             if arg in ("--make", "-mk"):
                 print(f"{STDO}Creating Makefile...")

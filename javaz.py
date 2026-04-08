@@ -1,297 +1,203 @@
-#!/bin/python3
+#!/usr/bin/env python3
 import subprocess
-import sys
+import argparse
 import os
 
-import modules.javazmod as javazmod
+from modules.javazmod import JavaZ
 
-
-alen = len(sys.argv)
-
-
-# functions global
-clear = lambda: os.system("clear")
-def fname() -> str:     return os.path.basename(__file__)
-def dict_to_list(d:dict) -> list:   return [i for p in d.items() for i in p]
-
-
-def start_file(lang:str="java") -> str:
-    open_vim = "./src/main/Main.java"
-
-    if lang == "cpp":
-        open_vim = "./main.cpp"
-     
-    add_str = "nvim {open_vim} -c NERDTree"
-    
-    sfile = javazmod.start_file + add_str
-
-    return sfile
-
-
-def remove_project(project_name:str) -> None:
-    try:
-        subprocess.run(["rm", "-rf", f"{project_name}/"])
-
-    except Exception as e:
-        print(f"{javazmod.STDE}{e}")
-
-
-def help_msg() -> None:
-    print(javazmod.HELP_MSG)
-
-    for a, b in javazmod.opts.items():
-        print(f" - {a}  \t\t\t\t- {b[1]}")
-
-    #print("----------------------------------------------------------------------------------------------------------------------------")
 
 #---------------------------------------------------------------------------------------
 # java
+def create_simple_project(project_name: str, main: bool = False, empty: bool = False) -> None:
+    jz = JavaZ(project_name)
 
-def comp_file(build_param:str) -> str:
-    simple_comp_file = f"""#!/bin/bash
-if [ "$#" -eq 0 ]; then
-    javac -d out $(find src -name \"*.java\")
-    {build_param}
+    print(f"{jz.STDO}Creating project '{project_name}'...")
 
-else
-    if [ $1 = "makepkg" ]; then
-        mkdir "src/$2"
-        echo "\033[92mPackage created!\033[0m"
-    fi
-fi
-"""
-    return simple_comp_file
-
-
-def create_simple_project(project_name:str, *args) -> None:
-    print(f"{STDO}Creating project '{project_name}'...")
     try:
-        subprocess.run(["mkdir", "-p", f"{project_name}/src"])
-        subprocess.run(["mkdir", f"{project_name}/out"])
+        subprocess.run( jz.cmd_mkdir_java("src") )
+        subprocess.run( jz.cmd_mkdir_java("out") )
+
         build_param = ""
-        for arg in args:
-            if arg == "--main":
-                subprocess.run(["mkdir", f"{project_name}/src/main"])
-                with open(f"{project_name}/src/main/Main.java", "w") as jf:
-                    jf.write(simple_java_file())
-                    jf.close()
-                build_param = "java -cp out main.Main"
 
-            elif arg in ("--none", "-e", "--empty"):
-                break
+        if main:
+            subprocess.run(jz.cmd_mkdir_java("main"))
+            jz.create_java_file()
+            build_param = "java -cp out main.Main"
 
-        # sh
-        print(f"{STDO}Creating a new compiling file for project...")
-        
-        with open(f"{project_name}/{COMP_FILE_NAME}", "w") as f:
-            f.write(comp_file(build_param))
-            f.close()
+        # creating new build file in root dir
+        print(f"{jz.STDO}Creating a new compiling file for project...")
+        jz.create_build_file(build_param)
 
-        with open(f"{project_name}/{START_FILE_NAME}", "w") as sf:
-            sf.write(start_file())
-            sf.close()
+        print(f"{jz.STDO}Creating a new ide starting file for project...")
+        jz.create_start_file()
 
-        subprocess.run(["chmod", RIGHTS, f"{project_name}/{COMP_FILE_NAME}"])
-        subprocess.run(["chmod", RIGHTS, f"{project_name}/{START_FILE_NAME}"])
+        subprocess.run(jz.cmd_chmod("build"))
+        subprocess.run(jz.cmd_chmod("start"))
 
     except Exception as e:
-        print(f"{STDE}{e}")
+        JavaZ.err(e)
 
 
-def create_gradle_project(project_name:str, **kwargs) -> None:
-    print(f"{STDO}Creating project '{project_name}'...")
+# gradle
+def create_gradle_project(project_name: str, all: bool = False, type: str = None, dsl: str = None, pkg: str = None) -> None:
+    jz = JavaZ(project_name)
+    print(f"{jz.STDO}Creating project '{project_name}'...")
+
     try:
-        subprocess.run(["mkdir", "-p", f"{project_name}"])
-        cmd = ["gradle", "init", "--project-dir", project_name]
+        subprocess.run( jz.cmd_mkdir(1) )
+        cmd = jz.cmd_gradle_init
         args = {}
 
-        for arg, opt in kwargs.items():
-            if arg in ("--all"):
-                args = { "--type": opts["javaa"], "--dsl": clangs[2], "--package": "main" }
-                break 
+        if all:
+            args = { "--type": "java-application", "--dsl": "kotlin", "--package": "main" }
+        else:
+            if type:
+                args["--type"] = type
+            if dsl:
+                args["--dsl"] = dsl
+            if pkg:
+                args["--package"] = pkg
 
-            if arg in ("--type", "-t"):
-                if opt not in list(opts.keys()):
-                    print(f"{STDE}Bad type!")
-                    return
-               
-                args["--type"] = opts[opt][0]
-
-            if arg in ("--dsl", "-d"):
-                if opt not in list(clangs.values()):
-                    print(f"{STDE}Bad configuration language!")
-                    return
-
-                args["--dsl"] = opt
-
-            if arg in ("--pkg", "-p"):
-                args["--package"] = opt
-
-        parms = dict_to_list(args)
+        parms = JavaZ.dict_to_list(args)
         
-        with open(f"{project_name}/{START_FILE_NAME}", "w") as sf:
-            sf.write(start_file())
-            sf.close()
+        print(f"{jz.STDO}Creating a new ide starting file for project...")
+        jz.create_start_file()
 
         subprocess.run(cmd + parms)
 
     except Exception as e:
-        print(f"{STDE}{e}")
+        JavaZ.err(e)
+
 
 #-----------------------------------------------------------------------------------------------
 # cpp
-def make_file_contets(target:str, lang:str) -> str:
-    comp = "g++"
-    stdc = "c++20"
-    fext = "cpp"
+def create_make_project(project_name: str, lang: str, include_local: bool = False, make: str = None) -> None:
+    jz = JavaZ(project_name)
+    print(f"{jz.STDO}Creating new project '{project_name}...'")
 
-    if lang != "c++":
-        comp = "gcc"
-        stdc = "c17"
-        fext = "c"
-
-    simple_make_file = f"""CC={comp}
-CCFLAGS=-std={stdc} -Wall -g
-TARGET={target}
-SRCS=main.{fext} $(wildcard lib/*.{fext})
-OBJS=$(SRCS:.{fext}=.o)
-
-all: $(TARGET)
-
-$(TARGET): $(OBJS)
-	$(CC) $(CCFLAGS) $(OBJS) -o $(TARGET)
-
-%.o: %.{fext}
-	$(CC) $(CCFLAGS) -c $< -o $@
-
-clean:
-	rm -f $(OBJS) $(TARGET)"""
-    
-    return simple_make_file
-
-
-def simple_cpp_file(lang:str, author:str="rNtR", description:str="simple program") -> str:
-    std_lib_to_inc = "iostream"
-    if lang != "c++":
-        std_lib_to_inc = "stdio.h"
-
-    cpp_file = f"""/*
- * This {description} written by {author}
- * All rights reserved 2025 - ... ©
-*/
-#include <{std_lib_to_inc}>
-
-int main(void)
-{{
-    // code
-
-    return 0;
-}}"""
-    return cpp_file
-
-
-def create_make_project(project_name:str, lang:str, *args) -> None:
-    print(f"{STDO}Creating new project '{project_name}...'")
     try:
-        subprocess.run(["mkdir", "-p", f"{project_name}/lib"]) 
-       
-        with open(f"{project_name}/main.{ 'cpp' if lang == 'c++' else 'c' }", "w") as cppf:
-            cppf.write(simple_cpp_file(lang))
-            cppf.close()
+        subprocess.run( jz.cmd_mkdir(0) )
+        jz.create_c_file(lang)
 
-        with open(f"{project_name}/start", "w") as sf:
-            sf.write(start_file("cpp"))
-            sf.close()
-        
-        subprocess.run(["chmod", RIGHTS, f"{project_name}/start"])
+        print(f"{jz.STDO}Creating a new ide starting file for project...")
+        jz.create_start_file(jz.LANG_CPP)
 
-        for arg in args:
-            if not arg.startswith("-"):
-                continue
+        subprocess.run(jz.cmd_chmod("start"))
 
-            if arg in ("--include-cstd", "-ics"):
-                cpp_lib = "libbsopen"
-                print(f"{STDO}Adding Custom STD library...")
-                subprocess.run(["cp", f"{ROOT_PATH}/std/{cpp_lib}.cpp", f"{project_name}/lib/"])
-                subprocess.run(["cp", f"{ROOT_PATH}/std/{cpp_lib}.hpp", f"{project_name}/lib/"])
+        if include_local:
+            print(f"{jz.STDO}Adding Custom STD library...")
+            subprocess.run( jz.cmd_cp_local_lib("cpp") )
+            subprocess.run( jz.cmd_cp_local_lib("hpp") )
 
-            if arg in ("--make", "-mk"):
-                print(f"{STDO}Creating Makefile...")
-                with open(f"{project_name}/Makefile", "w") as mf:
-                    mf.write(make_file_contets(args[(args.index(arg))+1], lang))
-                    mf.close()
+        if make:
+            print(f"{jz.STDO}Creating Makefile...")
+            jz.create_make_file(make, lang)
 
     except Exception as e:
-        print(f"{STDE}{e}")
+        JavaZ.err(e)
 
 
+def remove_project(project_name:str) -> None:
+    jz = JavaZ(project_name)
+    try:
+        subprocess.run( jz.cmd_remove_content )
+
+    except Exception as e:
+        JavaZ.err(e)
+
+def file_name() -> str:
+    return os.path.basename(__file__)
+
+
+# parser initialization
+def init_parse() -> argparse.Namespace:
+    """
+    javaz create [project_language] [project_name] (flags)\n
+    javaz remove project_name
+    """
+
+    arg = argparse.ArgumentParser( prog=file_name(), description=JavaZ.get_program_description(), epilog=JavaZ.get_program_epilog() )
+    root_subargs = arg.add_subparsers(dest="root", required=True)
+
+    remove = root_subargs.add_parser("remove", help="Remove project")
+    remove.add_argument("project_name")
+
+    create  = root_subargs.add_parser("create", help="Creates a new project")
+    lang    = create.add_subparsers(dest="language", required=True)
+
+    # java
+    java = lang.add_parser("java", help="Java project")
+    java.add_argument("project_name", help="Path to where project will be created")
+
+    single = java.add_mutually_exclusive_group()
+    single.add_argument(
+        "--main", "-m",
+        action="store_true",
+        help="Specify if you want a pregenerated project with files"
+    )
+    single.add_argument(
+        "--empty", "-e", "--none",
+        action="store_true",
+        help="Creates an empty project with only required files and directories"
+    )
+
+    #gradle
+    gradle = lang.add_parser("gradle", help="Gradle project")
+    gradle.add_argument("project_name", help="Path to where project will be created")
+
+    gradle.add_argument(
+        "--all",
+        action="store_true",
+        help="Creates a default gradle project"
+    )
+    gradle.add_argument(
+        "--type", "-t",
+        choices=JavaZ.gradle_all_types(),
+        help="Specify a type of a gradle project"
+    )
+    gradle.add_argument(
+        "--dsl",
+        choices=JavaZ.gradle_supported_scriptl(),
+        help="Specify script language"
+    )
+    gradle.add_argument(
+        "--pkg", "-p",
+        help="Package name"
+    )
+
+
+    #c++
+    cpp = lang.add_parser("c++", help="C++ project")
+    cpp.add_argument("project_name")
+    cpp.add_argument("--make")
+    cpp.add_argument("--include-local", action="store_true")
+
+    #c
+    #c = lang.add_parser("c", help="C project")
+
+    return arg.parse_args()
+
+
+# main
+def main() -> None:
+    args = init_parse()
+    pname = args.project_name
+
+    if args.root == "create":
+        match args.language:
+            case "java":
+                create_simple_project( pname, main=args.main, empty=args.empty )
+
+            case "gradle":
+                create_gradle_project( pname, all=args.all, type=args.type, dsl=args.dsl, pkg=args.pkg )
+
+            case "c++":
+                create_make_project( pname, "c++", include_local=args.include_local, make=args.make)
+
+    elif args.root == "remove":
+        remove_project(args.project_name)
+
+
+#=================== PROGRAM ===================
 if __name__ == "__main__":
-    if alen < MIN_ARGS: # or alen > MAX_ARGS):
-        print(f"{STDE} Must be atleast 2 arguments!")
-        sys.exit(1)
-
-    parms = []
-
-    for a in sys.argv:
-        if sys.argv.index(a) == 2:
-            parms.append(a)
-            continue
-
-        parms.append(a.lower())
-
-    #=============== Script ===============#
-    if parms[1] in ("--help", "-h"):
-        help_msg()
-
-    elif parms[1] in ("--remove", "-rm"):
-        prj_name = parms[2]
-        print(f"{STDO}Removing project '{prj_name}'...".replace("/", ""))
-        remove_project(prj_name)
-        print(f"{STDO}Project '{prj_name}' successfully removed!".replace("/", ""))
-
-    elif parms[1] in ("--version", "-v"):
-        print(version())
-
-    #=============== Java ===============#
-    elif parms[1] in ("--create-new", "-cp"):
-        create_simple_project(parms[2], parms[3]) 
-        print(f"{STDO}Done!")
-
-    elif parms[1] in ("--create-advanced", "-cap"):
-        if alen % 2 == 0:
-            print(f"{STDE}Missing parameter!")
-            sys.exit(1)
-
-        kwargs = {}
-        
-        if alen == 4:
-            kwargs["--all"] = ""
-            create_gradle_project(parms[2], **kwargs)
-            sys.exit(0)
-
-        for i in range(alen):
-            if i > 2 and i % 2 == 1:
-                kwargs[parms[i]] = parms[i+1]
-        
-        create_gradle_project(parms[2], **kwargs)
-
-    #=============== CPP ===============#
-    elif parms[1] in ("--create-new-other", "-cpo"):
-        
-        match parms[3]:
-            case "c++" | "c":
-                largs = []
-                for parm in parms:
-                    if parms.index(parm) > 3:
-                        largs.append(parm)
-
-                create_make_project(parms[2], parms[3], *largs)
-
-            case _:
-                print(f"{STDE}Language is not supported!")
-
-    else:
-        print(f"{STDE} Something went wrong, try again!")
-
-    sys.exit(0)
-
+    main()

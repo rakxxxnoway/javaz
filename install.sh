@@ -1,29 +1,22 @@
 #!/bin/bash
 set -e
 
-INSTALLPATH="/usr/local/lib/javaz"
 SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SHAREPATH="/usr/local/share/javaz"
 
 GREEN="\033[92m"
 RESET="\033[0m"
 
-sudo mkdir -p "$INSTALLPATH/std"
-sudo chown -R "$USER":"$USER" "$INSTALLPATH"
+ok() { echo -e "[${GREEN}*${RESET}] $1"; }
 
-ln -sf "$SCRIPTDIR/javaz.py" "$INSTALLPATH/"
-cp "$SCRIPTDIR"/std/* "$INSTALLPATH/std/"
+sudo mkdir -p "$SHAREPATH/std"
+sudo chown "$USER":"$USER" "$SHAREPATH"
 
-
-ALIAS_LINE="alias javaz='python3 $INSTALLPATH/javaz.py'"
-BASHRC="$HOME/.bashrc"
-
-if ! grep -q "alias javaz=" "$BASHRC" 2>/dev/null; then
-    echo "" >> "$BASHRC"
-    echo "# javaz alias" >> "$BASHRC"
-    echo "$ALIAS_LINE" >> "$BASHRC"
-    echo -e "[${GREEN}*${RESET}] Alias added to .bashrc"
-else
-    echo -e "[${GREEN}*${RESET}] Alias already exists in .bashrc"
+if [ -d "$SCRIPTDIR/std" ]; then
+    cp "$SCRIPTDIR"/std/* "$SHAREPATH/std/"
 fi
 
-echo -e "[\033[92m*\033[0m] Installation completed successfully!"
+sudo ln -sf "$SCRIPTDIR/javaz.py" /usr/local/bin/javaz
+sudo chmod +x "$SCRIPTDIR/javaz.py"
+
+ok "Done! Run: javaz --help"

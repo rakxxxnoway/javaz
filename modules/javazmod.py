@@ -1,6 +1,5 @@
-import os
+from . import constants
 
-import constants
 
 class JavaZ:
     _BUILD_FILE_NAME     = "build"
